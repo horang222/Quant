@@ -1,0 +1,97 @@
+import time
+import numpy as np
+import pandas as pd
+import OpenDartReader
+import FinanceDataReader as fdr
+
+my_api = 'e9818878b9613c7a9b9f4cc06b17281014d0a087' # 소연 api key
+# my_api = '0677e972c3f3f8c80475547fcddaf9a48c0d570f' # 내 api key
+
+dart = OpenDartReader(my_api)
+
+def str_to_int(value):
+    if value.startswith('-'):
+        return -(int(value.replace('-','0').replace(',','')))
+    else:
+        return int(value.replace('-','0').replace(',',''))
+
+def find_div_and_EPS(stock, year):
+    output = dict()
+    try:
+        _report = dart.report(stock, "배당", year, '11011')
+    except:
+        _report = None
+        
+    if (_report is None) or (len(_report) == 0):
+        output['주당배당금'] = np.nan, np.nan, np.nan 
+        output['주당순이익'] = np.nan, np.nan, np.nan
+        return output
+    
+    else:
+        # 주당 배당금 정리
+        div_temp = _report.loc[_report["se"] == "주당 현금배당금(원)"].iloc[0]
+        div_row = div_temp[['thstrm', 'frmtrm', 'lwfr']].values
+        
+        cur_div = int(div_row[0].replace('-','0').replace(',',''))
+        pre_div = int(div_row[1].replace('-','0').replace(',',''))
+        spre_div = int(div_row[2].replace('-','0').replace(',',''))
+
+        output['주당배당금'] = spre_div, pre_div, cur_div
+
+        # 주당순이익 정리
+        EPS_temp = _report.loc[_report["se"].str.contains("주당순이익")].iloc[0]
+        EPS_row = EPS_temp[['thstrm', 'frmtrm', 'lwfr']].apply(str_to_int)
+
+        cur_EPS = EPS_row[0]
+        pre_EPS = EPS_row[1]
+        spre_EPS = EPS_row[2]
+        output['주당순이익']= spre_EPS, pre_EPS, cur_EPS
+
+        return output
+    
+
+stock_list = pd.read_csv('./data/stock_list.txt', sep='\t')
+stock_name_list = stock_list['Name'].values
+
+div_data = []
+EPS_data = []
+
+for idx, name in enumerate(stock_name_list):
+    print(idx + 1, '/', len(stock_name_list))
+
+    div_record = [name]
+    EPS_record = [name]
+    
+    for year in [2016, 2019, 2022]:
+        try:
+            output = find_div_and_EPS(name, year)
+        except:
+            pass
+        
+        spre_divs, pre_divs, cur_divs = output['주당배당금']
+        spre_EPS, pre_EPS, cur_EPS = output['주당순이익']
+
+        div_record += [spre_divs, pre_divs, cur_divs]
+        EPS_record += [spre_EPS, pre_EPS, cur_EPS]
+
+        
+    div_data.append(div_record)
+    EPS_data.append(EPS_record)
+        
+
+columns = ['stock_name', '2014', '2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022']
+
+df_div = pd.DataFrame(div_data, columns=columns)
+df_EPS = pd.DataFrame(EPS_data, columns=columns)
+
+df_div.sort_values(by='stock_name', ascending=True, ignore_index=True, inplace=True)
+df_EPS.sort_values(by='stock_name', ascending=True, ignore_index=True, inplace=True)
+
+df_div.to_csv("./data/dividends2.csv", encoding='utf-8', index=False)
+df_EPS.to_csv("./data/EPS2.csv", encoding='utf-8', index=False)
+
+
+# EPS 데이터는 경우에 따라서 음수(-)가 나올 때가 있다. ex) LG에너지솔루션 2020년 EPS 데이터
+# 그런데 본래 책에 나와있는 방식으로 데이터를 수집하면 음수가 모두 양수로 표현되어 데이터의 왜곡이 발생한다.
+# 따라서 위의 str_to_int 함수를 적용하여 (-)부호로 시작하는 경우 앞에 다시 (-) 부호를 붙여준다.
+# 0은 (-)부호를 붙여도 값의 차이가 없기 때문에 상관 없음.
