@@ -4,8 +4,8 @@ import pandas as pd
 import OpenDartReader
 import FinanceDataReader as fdr
 
-my_api = 'e9818878b9613c7a9b9f4cc06b17281014d0a087' # 소연 api key
-# my_api = '0677e972c3f3f8c80475547fcddaf9a48c0d570f' # 내 api key
+my_api = '' # 소연 api key
+# my_api = '' # 내 api key
 
 dart = OpenDartReader(my_api)
 
